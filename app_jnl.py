@@ -52,19 +52,34 @@ def obter_data_ptbr():
     hoje = datetime.datetime.now()
     return f"SÃO PAULO, {hoje.day:02d} DE {meses[hoje.month]} DE {hoje.year}"
 
+def formatar_moeda(valor, bold=False):
+    """Cria uma micro-tabela para formatar R$ na esquerda e Valor na direita perfeitamente"""
+    font = 'Helvetica-Bold' if bold else 'Helvetica'
+    valor_str = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    t = Table([["R$", valor_str]], colWidths=[6*mm, 15*mm])
+    t.setStyle(TableStyle([
+        ('ALIGN', (0,0), (0,0), 'LEFT'),
+        ('ALIGN', (1,0), (1,0), 'RIGHT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('FONTNAME', (0,0), (-1,-1), font),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+    ]))
+    return t
+
 def gerar_corpo_pdf(dados, itens_df):
     buffer = BytesIO()
-    # Margens ajustadas para caber a tabela idêntica à da imagem (Largura útil: 190mm)
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=10*mm, leftMargin=10*mm, topMargin=45*mm, bottomMargin=40*mm)
     
     styles = getSampleStyleSheet()
     style_normal = ParagraphStyle('Normal', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=14, textTransform='uppercase')
-    # Estilo centrado para a descrição da tabela
     style_center = ParagraphStyle('Center', parent=style_normal, alignment=1, fontSize=8, leading=11)
     
     elementos = []
 
-    # 1. Cabeçalho Inicial
     elementos.append(Paragraph(obter_data_ptbr(), style_normal))
     elementos.append(Spacer(1, 10*mm))
     
@@ -79,8 +94,6 @@ def gerar_corpo_pdf(dados, itens_df):
     elementos.append(Paragraph("DAMOS ABAIXO, NOSSAS CONDIÇÕES PARA FORNECIMENTO DOS SEGUINTES MATERIAIS:", style_normal))
     elementos.append(Spacer(1, 4*mm))
 
-    # --- INÍCIO DA ESTRUTURA DA TABELA IDÊNTICA À IMAGEM ---
-    
     # Larguras exatas das colunas (Soma = 190mm)
     cw = [10*mm, 13*mm, 13*mm, 70*mm, 18*mm, 22*mm, 22*mm, 22*mm]
     
@@ -92,13 +105,11 @@ def gerar_corpo_pdf(dados, itens_df):
         ('FONTSIZE', (0,0), (-1,-1), 8),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 1, colors.black), # Bordas sólidas pretas
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black), # Linhas mais finas (0.5)
         ('TOPPADDING', (0,0), (-1,-1), 4),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
     ]))
     elementos.append(t_cab)
-    
-    # ESPAÇO ENTRE CABEÇALHO E ITENS
     elementos.append(Spacer(1, 2*mm))
 
     # TABELA 2: ITENS
@@ -110,12 +121,10 @@ def gerar_corpo_pdf(dados, itens_df):
         v_total = qtd * v_unit
         total_proposta += v_total
         
-        # Formatação da descrição com a marca, se preenchida
         desc = str(row['DESCRIÇÃO'])
         if dados['marca'].strip():
             desc += f" - MARCA: {dados['marca']}"
             
-        # Formatação da quantidade (tira o .0 e troca ponto por vírgula se for decimal)
         qtd_str = f"{qtd:g}".replace(".", ",")
             
         corpo.append([
@@ -125,8 +134,8 @@ def gerar_corpo_pdf(dados, itens_df):
             Paragraph(desc, style_center), 
             row['GARANTIA'], 
             row['PRAZO ENTREGA'], 
-            f"R$ {v_unit:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            f"R$ {v_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            formatar_moeda(v_unit, bold=False), # Chamando a micro-tabela
+            formatar_moeda(v_total, bold=False)
         ])
 
     t_corpo = Table(corpo, colWidths=cw)
@@ -135,53 +144,49 @@ def gerar_corpo_pdf(dados, itens_df):
         ('FONTSIZE', (0,0), (-1,-1), 8),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ('TOPPADDING', (0,0), (-1,-1), 6),
         ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (6,0), (7,-1), 1), # Ajuste para a micro-tabela caber
+        ('RIGHTPADDING', (6,0), (7,-1), 1),
     ]))
     elementos.append(t_corpo)
-    
-    # ESPAÇO ENTRE ITENS E TOTAL
     elementos.append(Spacer(1, 2*mm))
 
-    # TABELA 3: VALOR TOTAL (Alinhada perfeitamente à direita com as colunas acima)
-    # Largura da caixa texto = PRAZO ENTREGA + VALOR UNIT. (cw[5] + cw[6]) = 44mm
-    # Largura da caixa valor = VALOR TOTAL (cw[7]) = 22mm
-    dados_total = [["VALOR DA PROPOSTA", f"R$ {total_proposta:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")]]
+    # TABELA 3: VALOR TOTAL
+    dados_total = [["VALOR DA PROPOSTA", formatar_moeda(total_proposta, bold=True)]]
     t_total = Table(dados_total, colWidths=[cw[5]+cw[6], cw[7]], hAlign='RIGHT')
     t_total.setStyle(TableStyle([
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
         ('FONTSIZE', (0,0), (-1,-1), 8),
         ('ALIGN', (0,0), (0,0), 'CENTER'),
-        ('ALIGN', (1,0), (1,0), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
         ('TOPPADDING', (0,0), (-1,-1), 4),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (1,0), (1,0), 1),
+        ('RIGHTPADDING', (1,0), (1,0), 1),
     ]))
     elementos.append(t_total)
     
-    # --- FIM DA ESTRUTURA DA TABELA ---
-    
     elementos.append(Spacer(1, 6*mm))
 
-    # Inserção de Notas Livres (se houver)
     if dados['notas'].strip():
         for linha in dados['notas'].split('\n'):
             if linha.strip():
                 elementos.append(Paragraph(linha.strip(), style_normal))
         elementos.append(Spacer(1, 6*mm))
 
-    # Condições Comerciais (Conforme PDF modelo)
     bloco_final = [
         Paragraph(f"• CONDIÇÕES DE PAGAMENTO: {dados['pagamento']}", style_normal),
         Paragraph("• ALIQUOTA DE IPI: 0%", style_normal),
         Paragraph(f"• ICMS: {dados['icms']}% (INCLUSO NOS PREÇOS COTADOS)", style_normal),
-        Paragraph(f"NCM: {dados['ncm']}", style_normal), # Sem o bullet point, conforme o seu PDF
+        Paragraph(f"NCM: {dados['ncm']}", style_normal),
         Paragraph("• VALIDADE DA PROPOSTA: 45 DIAS", style_normal),
         Paragraph(f"• {dados['local_entrega']}", style_normal),
         Spacer(1, 10*mm),
-        Paragraph("ATENCIOSAMENTE", style_normal),
+        Paragraph("ATENCIOSAMENTE,", style_normal),
+        Spacer(1, 15*mm), # O ESPAÇO DA ASSINATURA VOLTOU!
         Paragraph(dados['assinatura_nome'], style_normal),
         Paragraph(dados['assinatura_cargo'], style_normal),
     ]
@@ -230,18 +235,15 @@ with aba_nova:
             pd.DataFrame([{"QUANT.": 1.0, "UN. MED.": "UN", "DESCRIÇÃO": "", "GARANTIA": "90 DIAS", "PRAZO ENTREGA": "25 DIAS", "VALOR UNIT.": 0.0}]),
             num_rows="dynamic", use_container_width=True,
             column_config={
-                "QUANT.": st.column_config.NumberColumn(format="%.2f"), # Permite decimais como 22.7
+                "QUANT.": st.column_config.NumberColumn(format="%.2f"),
                 "VALOR UNIT.": st.column_config.NumberColumn(format="%.2f")
             }
         )
 
     with st.container(border=True):
         st.subheader("Condições Comerciais e Notas")
-        
-        # Campo para as Notas (como Datasheet, FISPQ, Avisos de Marcas)
         f_notas = st.text_area("Observações / Notas Extras (Serão impressas abaixo da tabela)", 
                                placeholder="Ex: NOTA: MATERIAL SERÁ FORNECIDO...\nSEGUE ANEXO DATASHEET...", height=100)
-        
         c3, c4 = st.columns(2)
         with c3:
             f_marca = st.text_input("Marca a ser inserida na Descrição", placeholder="Ex: CHEMOURS, VOLVO...", value="")
@@ -255,7 +257,7 @@ with aba_nova:
         payload = {
             'empresa': f_empresa.upper(), 'comprador': f_comprador.upper(), 'local': f_local.upper(),
             'ref_numero': f_ref.upper(), 'marca': f_marca.upper(),
-            'notas': f_notas.upper(), # Notas enviadas para o PDF
+            'notas': f_notas.upper(),
             'pagamento': f_pagto.upper(), 'ncm': f_ncm, 'icms': f_icms, 'local_entrega': f_local_entrega.upper(),
             'assinatura_nome': f_assinatura,
             'assinatura_cargo': "ASSISTENTE COMERCIAL" if f_assinatura == "MILENE BUENO" else "DIRETOR"
@@ -267,11 +269,11 @@ with aba_nova:
         
         st.download_button("📥 BAIXAR PROPOSTA OFICIAL", data=pdf_final, file_name=nome_arq)
     else:
-        st.warning("⚠️ Preencha a Razão Social, Comprador e a Referência para libertar o download do PDF.")
+        st.warning("⚠️ Preencha a Razão Social, Comprador e a Referência para liberar o download do PDF.")
 
 with aba_hist:
-    st.info("Aqui entrará a lista das últimas propostas geradas (Ligação Supabase a aguardar ativação).")
+    st.info("Aqui entrará a lista das últimas propostas geradas (Conexão Supabase aguardando ativação).")
 
 with aba_config:
-    st.write("### Definições")
-    st.write("O papel timbrado está a ser lido da pasta: `assets/PAPEL TIMBRADO - JNL.pdf`")
+    st.write("### Ajustes")
+    st.write("O papel timbrado está sendo lido da pasta: `assets/PAPEL TIMBRADO - JNL.pdf`")
