@@ -12,19 +12,41 @@ from pypdf import PdfReader, PdfWriter
 
 st.set_page_config(page_title="Sistema JNL - Propostas", layout="wide")
 
-# --- CSS CUSTOMIZADO ---
+# --- CSS CUSTOMIZADO (FORÇANDO BORDAS E CORES) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f0f2f5; }
+    /* Fundo da tela cinza muito claro para dar contraste */
+    .stApp { background-color: #f4f6f9; }
+    
+    /* Estilizando as abas */
     .stTabs [data-baseweb="tab-list"] { gap: 24px; }
     .stTabs [data-baseweb="tab"] { height: 50px; font-weight: bold; color: #004d40; }
+    
+    /* Forçando BORDAS nos inputs de texto e selectboxes */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] {
+        border: 1px solid #ced4da !important;
+        border-radius: 6px !important;
+        background-color: #ffffff !important;
+        padding: 8px 12px !important;
+    }
+    
+    /* Cor ao focar no input */
+    .stTextInput input:focus, .stSelectbox div[data-baseweb="select"]:focus-within {
+        border-color: #004d40 !important;
+        box-shadow: 0 0 0 1px #004d40 !important;
+    }
+
+    /* Botão Verde Bonito */
     div[data-testid="stDownloadButton"] > button {
         background-color: #004d40; color: white; border-radius: 8px;
-        width: 100%; height: 50px; font-weight: bold; border: none; transition: 0.3s;
+        width: 100%; height: 55px; font-size: 16px; font-weight: bold; border: none; transition: 0.3s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 15px;
     }
     div[data-testid="stDownloadButton"] > button:hover {
-        background-color: #00332a; box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        background-color: #00332a; box-shadow: 0 6px 12px rgba(0,0,0,0.2);
     }
+    
+    /* Títulos padronizados no verde da JNL */
     h1, h2, h3 { color: #004d40 !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -46,21 +68,17 @@ def gerar_corpo_pdf(dados, itens_df):
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=45*mm, bottomMargin=40*mm)
     
     styles = getSampleStyleSheet()
-    # PADRÃO ÚNICO PARA TUDO: Helvetica (compatível com a nuvem sem quebrar), tamanho 10, sem negrito.
     style_normal = ParagraphStyle('Normal', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=14, textTransform='uppercase')
     
     elementos = []
 
-    # 1. Data em Português
     elementos.append(Paragraph(obter_data_ptbr(), style_normal))
     elementos.append(Spacer(1, 10*mm))
     
-    # 2. Cliente
     texto_destinatario = f"A<br/>{dados['empresa']}<br/>{dados['local']}"
     elementos.append(Paragraph(texto_destinatario, style_normal))
     elementos.append(Spacer(1, 5*mm))
     
-    # 3. Comprador e Referência
     texto_att = f"ATT. SR(A). {dados['comprador']} - COMPRAS<br/>REF. COTAÇÃO NO. {dados['ref_numero']}"
     elementos.append(Paragraph(texto_att, style_normal))
     elementos.append(Spacer(1, 8*mm))
@@ -68,7 +86,6 @@ def gerar_corpo_pdf(dados, itens_df):
     elementos.append(Paragraph("DAMOS ABAIXO, NOSSAS CONDIÇÕES PARA FORNECIMENTO DOS SEGUINTES MATERIAIS:", style_normal))
     elementos.append(Spacer(1, 5*mm))
 
-    # 4. Tabela de Itens Corrigida e Centralizada
     data = [["ITEM", "QUANT.", "UN. MED.", "DESCRIÇÃO", "GARANTIA", "PRAZO\nENTREGA", "V. UNIT.", "V. TOTAL"]]
     total_proposta = 0.0
     
@@ -86,31 +103,26 @@ def gerar_corpo_pdf(dados, itens_df):
             f"R$ {v_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         ])
 
-    # Linha final mesclada (SPAN) para não empurrar os textos
     linha_total = ["VALOR DA PROPOSTA", "", "", "", "", "", "", f"R$ {total_proposta:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")]
     data.append(linha_total)
 
-    # Larguras calibradas para caber exatamente na folha A4 (Total 170mm)
     tabela = Table(data, colWidths=[10*mm, 12*mm, 15*mm, 50*mm, 20*mm, 20*mm, 20*mm, 23*mm])
     tabela.setStyle(TableStyle([
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 9), # Tabela levemente menor para respirar bem
-        ('ALIGN', (0,0), (-1,-2), 'CENTER'), # Centraliza cabeçalhos e corpo
-        ('ALIGN', (3,1), (3,-2), 'LEFT'), # Mantém apenas a descrição alinhada à esquerda
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('ALIGN', (0,0), (-1,-2), 'CENTER'),
+        ('ALIGN', (3,1), (3,-2), 'LEFT'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-2), 0.5, colors.grey),
-        
-        # Estilo exclusivo da última linha (Valor Total)
-        ('SPAN', (0,-1), (6,-1)), # Mescla as colunas para o texto "VALOR DA PROPOSTA" ter espaço
-        ('ALIGN', (0,-1), (6,-1), 'RIGHT'), # Joga o texto para a direita
-        ('ALIGN', (7,-1), (7,-1), 'CENTER'), # Centraliza o número final
+        ('SPAN', (0,-1), (6,-1)),
+        ('ALIGN', (0,-1), (6,-1), 'RIGHT'),
+        ('ALIGN', (7,-1), (7,-1), 'CENTER'),
         ('LINEBELOW', (0,-1), (-1,-1), 0.5, colors.grey),
         ('LINEABOVE', (0,-1), (-1,-1), 0.5, colors.grey),
     ]))
     elementos.append(tabela)
     elementos.append(Spacer(1, 10*mm))
 
-    # 5. Condições Comerciais (Um embaixo do outro, sem negrito, mantendo o bloco unido)
     bloco_final = [
         Paragraph(f"MARCA COTADA: {dados['marca']}", style_normal),
         Spacer(1, 5*mm),
@@ -120,9 +132,9 @@ def gerar_corpo_pdf(dados, itens_df):
         Paragraph(f"• NCM: {dados['ncm']}", style_normal),
         Paragraph("• VALIDADE DA PROPOSTA: 45 DIAS", style_normal),
         Paragraph(f"• {dados['local_entrega']}", style_normal),
-        Spacer(1, 15*mm), # Espaço grande antes do Atenciosamente
+        Spacer(1, 15*mm),
         Paragraph("ATENCIOSAMENTE,", style_normal),
-        Spacer(1, 10*mm), # O ESPAÇO EXATO ENTRE O ATENCIOSAMENTE E O NOME
+        Spacer(1, 10*mm),
         Paragraph(dados['assinatura_nome'], style_normal),
         Paragraph(dados['assinatura_cargo'], style_normal),
     ]
@@ -154,37 +166,44 @@ st.title("Centro de Comando JNL")
 aba_nova, aba_hist, aba_config = st.tabs(["📄 Nova Proposta", "📂 Histórico", "⚙️ Configurações"])
 
 with aba_nova:
-    st.write("### Dados do Cliente")
-    c1, c2 = st.columns(2)
-    with c1:
-        f_empresa = st.text_input("Razão Social do Cliente", value="EMPRESA EXEMPLO")
-        f_comprador = st.text_input("Comprador(a)", value="NOME DO COMPRADOR")
-        f_local = st.text_input("Cidade / UF", value="SAO PAULO/SP")
-    with c2:
-        f_ref = st.text_input("REF. COTAÇÃO NO.", value="123456")
-        f_assinatura = st.selectbox("Assinatura", ["MILENE BUENO", "FELIPE"])
+    
+    # CONTAINER 1: DADOS DO CLIENTE (Com borda e fundo)
+    with st.container(border=True):
+        st.subheader("Dados do Cliente")
+        c1, c2 = st.columns(2)
+        with c1:
+            f_empresa = st.text_input("Razão Social do Cliente", value="EMPRESA EXEMPLO")
+            f_comprador = st.text_input("Comprador(a)", value="NOME DO COMPRADOR")
+            f_local = st.text_input("Cidade / UF", value="SAO PAULO/SP")
+        with c2:
+            f_ref = st.text_input("REF. COTAÇÃO NO.", value="123456")
+            f_assinatura = st.selectbox("Assinatura", ["MILENE BUENO", "FELIPE"])
 
-    st.write("### Itens da Cotação")
-    df_itens = st.data_editor(
-        pd.DataFrame([{"QUANT.": 1, "UN. MED.": "UN", "DESCRIÇÃO": "EXEMPLO DE PRODUTO", "GARANTIA": "90 DIAS", "PRAZO ENTREGA": "25 DIAS", "VALOR UNIT.": 100.00}]),
-        num_rows="dynamic", use_container_width=True,
-        column_config={
-            "QUANT.": st.column_config.NumberColumn(format="%d"),
-            "VALOR UNIT.": st.column_config.NumberColumn(format="%.2f")
-        }
-    )
+    # CONTAINER 2: ITENS DA COTAÇÃO
+    with st.container(border=True):
+        st.subheader("Itens da Cotação")
+        df_itens = st.data_editor(
+            pd.DataFrame([{"QUANT.": 1, "UN. MED.": "UN", "DESCRIÇÃO": "EXEMPLO DE PRODUTO", "GARANTIA": "90 DIAS", "PRAZO ENTREGA": "25 DIAS", "VALOR UNIT.": 100.00}]),
+            num_rows="dynamic", use_container_width=True,
+            column_config={
+                "QUANT.": st.column_config.NumberColumn(format="%d"),
+                "VALOR UNIT.": st.column_config.NumberColumn(format="%.2f")
+            }
+        )
 
-    st.write("### Condições Comerciais")
-    c3, c4 = st.columns(2)
-    with c3:
-        f_marca = st.text_input("Marca Cotada", value="MARCA EXEMPLO")
-        f_pagto = st.text_input("Pagamento", value="30 DIAS (DDF)")
-        f_local_entrega = st.text_input("Local de Entrega", value="MATERIAL POSTO NO ALMOX. DA BRASFELS NO RJ. (CIF)")
-    with c4:
-        f_icms = st.text_input("ICMS (%)", value="12")
-        f_ncm = st.text_input("NCM", value="8479.89.99")
+    # CONTAINER 3: CONDIÇÕES COMERCIAIS
+    with st.container(border=True):
+        st.subheader("Condições Comerciais")
+        c3, c4 = st.columns(2)
+        with c3:
+            f_marca = st.text_input("Marca Cotada", value="MARCA EXEMPLO")
+            f_pagto = st.text_input("Pagamento", value="30 DIAS (DDF)")
+            f_local_entrega = st.text_input("Local de Entrega", value="MATERIAL POSTO NO ALMOX. DA BRASFELS NO RJ. (CIF)")
+        with c4:
+            f_icms = st.text_input("ICMS (%)", value="12")
+            f_ncm = st.text_input("NCM", value="8479.89.99")
 
-    # GERAÇÃO AUTOMÁTICA EM TEMPO REAL (Evita os dois botões inúteis)
+    # GERAÇÃO AUTOMÁTICA EM TEMPO REAL
     payload = {
         'empresa': f_empresa.upper(), 'comprador': f_comprador.upper(), 'local': f_local.upper(),
         'ref_numero': f_ref.upper(), 'marca': f_marca.upper(),
@@ -197,8 +216,8 @@ with aba_nova:
     pdf_final = mesclar_com_timbre(pdf_corpo)
     nome_arq = formatar_nome_arquivo(f_empresa, f_comprador, f_ref)
     
-    st.write("---")
-    st.download_button("📥 BAIXAR PROPOSTA OFICIAL", data=pdf_final, file_name=nome_arq, type="primary")
+    # O BOTÃO VERDE
+    st.download_button("📥 BAIXAR PROPOSTA OFICIAL", data=pdf_final, file_name=nome_arq)
 
 with aba_hist:
     st.info("Aqui entrará a lista das últimas propostas geradas (Conexão Supabase aguardando ativação).")
