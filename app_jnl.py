@@ -12,7 +12,7 @@ from pypdf import PdfReader, PdfWriter
 
 st.set_page_config(page_title="Sistema JNL - Propostas", layout="wide")
 
-# --- CSS CUSTOMIZADO ---
+# --- CSS CUSTOMIZADO (FORÇANDO BORDAS E CORES) ---
 st.markdown("""
     <style>
     .stApp { background-color: #f4f6f9; }
@@ -23,6 +23,10 @@ st.markdown("""
         border-radius: 6px !important;
         background-color: #ffffff !important;
         padding: 8px 12px !important;
+    }
+    .stTextInput input:focus, .stSelectbox div[data-baseweb="select"]:focus-within {
+        border-color: #004d40 !important;
+        box-shadow: 0 0 0 1px #004d40 !important;
     }
     div[data-testid="stDownloadButton"] > button {
         background-color: #004d40; color: white; border-radius: 8px;
@@ -50,10 +54,11 @@ def obter_data_ptbr():
 
 def gerar_corpo_pdf(dados, itens_df):
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=45*mm, bottomMargin=40*mm)
+    # Aumentamos a área da tabela: Margens reduzidas de 20mm para 15mm
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=45*mm, bottomMargin=40*mm)
     
     styles = getSampleStyleSheet()
-    # PADRÃO ÚNICO PARA TUDO: Helvetica, tamanho 10, sem negrito
+    # PADRÃO ÚNICO: Helvetica, tamanho 10, sem negrito para TODO o texto do PDF
     style_normal = ParagraphStyle('Normal', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=14, textTransform='uppercase')
     
     elementos = []
@@ -72,7 +77,7 @@ def gerar_corpo_pdf(dados, itens_df):
     elementos.append(Paragraph("DAMOS ABAIXO, NOSSAS CONDIÇÕES PARA FORNECIMENTO DOS SEGUINTES MATERIAIS:", style_normal))
     elementos.append(Spacer(1, 5*mm))
 
-    # 4. Tabela de Itens (Calibrada para evitar esmagamento)
+    # Tabela de Itens
     data = [["ITEM", "QUANT.", "UN. MED.", "DESCRIÇÃO", "GARANTIA", "PRAZO\nENTREGA", "V. UNIT.", "V. TOTAL"]]
     total_proposta = 0.0
     
@@ -93,37 +98,36 @@ def gerar_corpo_pdf(dados, itens_df):
     linha_total = ["VALOR DA PROPOSTA", "", "", "", "", "", "", f"R$ {total_proposta:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")]
     data.append(linha_total)
 
-    # Larguras totais (170mm)
-    tabela = Table(data, colWidths=[10*mm, 15*mm, 15*mm, 45*mm, 20*mm, 20*mm, 22*mm, 23*mm])
+    # LARGURAS CORRIGIDAS (Total 180mm). Colunas 2 e 3 mais largas para o texto caber solto.
+    tabela = Table(data, colWidths=[10*mm, 17*mm, 19*mm, 46*mm, 21*mm, 22*mm, 22*mm, 23*mm])
     tabela.setStyle(TableStyle([
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
         ('FONTSIZE', (0,0), (-1,-1), 10),
-        ('ALIGN', (0,0), (-1,-2), 'CENTER'),
-        ('ALIGN', (3,1), (3,-2), 'LEFT'),
+        ('ALIGN', (0,0), (-1,-2), 'CENTER'), # Centraliza os títulos e o meio
+        ('ALIGN', (3,1), (3,-2), 'LEFT'), # Mantém só a descrição na esquerda
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         
-        # AFASTAMENTO DOS TÍTULOS (PADDING)
-        ('TOPPADDING', (0,0), (-1,0), 6),
-        ('BOTTOMPADDING', (0,0), (-1,0), 6),
-        ('LEFTPADDING', (0,0), (-1,0), 4),
-        ('RIGHTPADDING', (0,0), (-1,0), 4),
+        # PADDING GERAL (Respiro interno)
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 3),
+        ('RIGHTPADDING', (0,0), (-1,-1), 3),
         
-        # GRID SOMENTE ATÉ A PENÚLTIMA LINHA (Remove a linha de separação final)
+        # GRID SÓ PARA OS ITENS (Remove as linhas perdidas em volta do total)
         ('GRID', (0,0), (-1,-2), 0.5, colors.grey),
         
-        # Estilo do Total
-        ('SPAN', (0,-1), (6,-1)),
-        ('ALIGN', (0,-1), (6,-1), 'RIGHT'),
+        # ESTILO EXCLUSIVO DA LINHA DE TOTAL
+        ('SPAN', (0,-1), (6,-1)), # Junta as células da esquerda
+        ('ALIGN', (0,-1), (6,-1), 'RIGHT'), # Joga a palavra "VALOR DA PROPOSTA" para a direita
+        ('RIGHTPADDING', (0,-1), (6,-1), 10), # Dá um espacinho entre o "PROPOSTA" e o "R$"
         ('ALIGN', (7,-1), (7,-1), 'CENTER'),
         ('LINEBELOW', (7,-1), (7,-1), 0.5, colors.grey),
         ('LINEABOVE', (7,-1), (7,-1), 0.5, colors.grey),
-        ('LEFTPADDING', (0,-1), (-1,-1), 4),
-        ('RIGHTPADDING', (0,-1), (-1,-1), 4),
     ]))
     elementos.append(tabela)
     elementos.append(Spacer(1, 10*mm))
 
-    # 5. Condições Comerciais (Um embaixo do outro, sem negrito)
+    # Condições Comerciais em formato de lista plana
     bloco_final = [
         Paragraph(f"MARCA COTADA: {dados['marca']}", style_normal),
         Spacer(1, 5*mm),
@@ -135,7 +139,7 @@ def gerar_corpo_pdf(dados, itens_df):
         Paragraph(f"• {dados['local_entrega']}", style_normal),
         Spacer(1, 15*mm),
         Paragraph("ATENCIOSAMENTE,", style_normal),
-        Spacer(1, 15*mm), # Espaço garantido entre Atenciosamente e o Nome
+        Spacer(1, 15*mm), # Espaço grande para assinar, se for o caso
         Paragraph(dados['assinatura_nome'], style_normal),
         Paragraph(dados['assinatura_cargo'], style_normal),
     ]
@@ -171,11 +175,11 @@ with aba_nova:
         st.subheader("Dados do Cliente")
         c1, c2 = st.columns(2)
         with c1:
-            f_empresa = st.text_input("Razão Social do Cliente", placeholder="Ex: BRIDGESTONE / FIRESTONE")
-            f_comprador = st.text_input("Comprador(a)", placeholder="Ex: NOME DO COMPRADOR")
+            f_empresa = st.text_input("Razão Social do Cliente", placeholder="Ex: BRIDGESTONE / FIRESTONE", value="")
+            f_comprador = st.text_input("Comprador(a)", placeholder="Ex: NOME DO COMPRADOR", value="")
             f_local = st.text_input("Cidade / UF", value="SAO PAULO/SP")
         with c2:
-            f_ref = st.text_input("REF. COTAÇÃO NO.", placeholder="Ex: 123456")
+            f_ref = st.text_input("REF. COTAÇÃO NO.", placeholder="Ex: 123456", value="")
             f_assinatura = st.selectbox("Assinatura", ["MILENE BUENO", "FELIPE"])
 
     with st.container(border=True):
@@ -193,7 +197,7 @@ with aba_nova:
         st.subheader("Condições Comerciais")
         c3, c4 = st.columns(2)
         with c3:
-            f_marca = st.text_input("Marca Cotada", placeholder="Ex: HYUNDAI, VOLVO...")
+            f_marca = st.text_input("Marca Cotada", placeholder="Ex: HYUNDAI, VOLVO, KOMATSU...", value="")
             f_pagto = st.text_input("Pagamento", value="30 DIAS (DDF)")
             f_local_entrega = st.text_input("Local de Entrega", value="MATERIAL POSTO NO ALMOX. DA BRASFELS NO RJ. (CIF)")
         with c4:
@@ -212,12 +216,14 @@ with aba_nova:
         pdf_corpo = gerar_corpo_pdf(payload, df_itens)
         pdf_final = mesclar_com_timbre(pdf_corpo)
         nome_arq = formatar_nome_arquivo(f_empresa, f_comprador, f_ref)
+        
         st.download_button("📥 BAIXAR PROPOSTA OFICIAL", data=pdf_final, file_name=nome_arq)
     else:
-        st.warning("⚠️ Preencha os campos obrigatórios para liberar o download.")
+        st.warning("⚠️ Preencha a Razão Social, Comprador e a Referência para liberar o download do PDF.")
 
 with aba_hist:
-    st.info("Histórico aguardando ativação do Supabase.")
+    st.info("Aqui entrará a lista das últimas propostas geradas (Conexão Supabase aguardando ativação).")
 
 with aba_config:
-    st.write("Papel timbrado em: `assets/PAPEL TIMBRADO - JNL.pdf`")
+    st.write("### Ajustes")
+    st.write("O papel timbrado está sendo lido da pasta: `assets/PAPEL TIMBRADO - JNL.pdf`")
