@@ -172,18 +172,18 @@ with aba_nova:
         st.subheader("Dados do Cliente")
         c1, c2 = st.columns(2)
         with c1:
-            f_empresa = st.text_input("Razão Social do Cliente", value="EMPRESA EXEMPLO")
-            f_comprador = st.text_input("Comprador(a)", value="NOME DO COMPRADOR")
+            f_empresa = st.text_input("Razão Social do Cliente", placeholder="Ex: BRIDGESTONE / FIRESTONE", value="")
+            f_comprador = st.text_input("Comprador(a)", placeholder="Ex: NOME DO COMPRADOR", value="")
             f_local = st.text_input("Cidade / UF", value="SAO PAULO/SP")
         with c2:
-            f_ref = st.text_input("REF. COTAÇÃO NO.", value="123456")
+            f_ref = st.text_input("REF. COTAÇÃO NO.", placeholder="Ex: 123456", value="")
             f_assinatura = st.selectbox("Assinatura", ["MILENE BUENO", "FELIPE"])
 
     # CONTAINER 2: ITENS DA COTAÇÃO
     with st.container(border=True):
         st.subheader("Itens da Cotação")
         df_itens = st.data_editor(
-            pd.DataFrame([{"QUANT.": 1, "UN. MED.": "UN", "DESCRIÇÃO": "EXEMPLO DE PRODUTO", "GARANTIA": "90 DIAS", "PRAZO ENTREGA": "25 DIAS", "VALOR UNIT.": 100.00}]),
+            pd.DataFrame([{"QUANT.": 1, "UN. MED.": "UN", "DESCRIÇÃO": "", "GARANTIA": "90 DIAS", "PRAZO ENTREGA": "25 DIAS", "VALOR UNIT.": 0.0}]),
             num_rows="dynamic", use_container_width=True,
             column_config={
                 "QUANT.": st.column_config.NumberColumn(format="%d"),
@@ -196,28 +196,31 @@ with aba_nova:
         st.subheader("Condições Comerciais")
         c3, c4 = st.columns(2)
         with c3:
-            f_marca = st.text_input("Marca Cotada", value="MARCA EXEMPLO")
+            f_marca = st.text_input("Marca Cotada", placeholder="Ex: HYUNDAI, VOLVO, KOMATSU...", value="")
             f_pagto = st.text_input("Pagamento", value="30 DIAS (DDF)")
             f_local_entrega = st.text_input("Local de Entrega", value="MATERIAL POSTO NO ALMOX. DA BRASFELS NO RJ. (CIF)")
         with c4:
             f_icms = st.text_input("ICMS (%)", value="12")
             f_ncm = st.text_input("NCM", value="8479.89.99")
 
-    # GERAÇÃO AUTOMÁTICA EM TEMPO REAL
-    payload = {
-        'empresa': f_empresa.upper(), 'comprador': f_comprador.upper(), 'local': f_local.upper(),
-        'ref_numero': f_ref.upper(), 'marca': f_marca.upper(),
-        'pagamento': f_pagto.upper(), 'ncm': f_ncm, 'icms': f_icms, 'local_entrega': f_local_entrega.upper(),
-        'assinatura_nome': f_assinatura,
-        'assinatura_cargo': "ASSISTENTE COMERCIAL" if f_assinatura == "MILENE BUENO" else "DIRETOR"
-    }
-    
-    pdf_corpo = gerar_corpo_pdf(payload, df_itens)
-    pdf_final = mesclar_com_timbre(pdf_corpo)
-    nome_arq = formatar_nome_arquivo(f_empresa, f_comprador, f_ref)
-    
-    # O BOTÃO VERDE
-    st.download_button("📥 BAIXAR PROPOSTA OFICIAL", data=pdf_final, file_name=nome_arq)
+    # GERAÇÃO AUTOMÁTICA EM TEMPO REAL (Com trava de segurança)
+    if f_empresa and f_comprador and f_ref:
+        payload = {
+            'empresa': f_empresa.upper(), 'comprador': f_comprador.upper(), 'local': f_local.upper(),
+            'ref_numero': f_ref.upper(), 'marca': f_marca.upper(),
+            'pagamento': f_pagto.upper(), 'ncm': f_ncm, 'icms': f_icms, 'local_entrega': f_local_entrega.upper(),
+            'assinatura_nome': f_assinatura,
+            'assinatura_cargo': "ASSISTENTE COMERCIAL" if f_assinatura == "MILENE BUENO" else "DIRETOR"
+        }
+        
+        pdf_corpo = gerar_corpo_pdf(payload, df_itens)
+        pdf_final = mesclar_com_timbre(pdf_corpo)
+        nome_arq = formatar_nome_arquivo(f_empresa, f_comprador, f_ref)
+        
+        # O BOTÃO VERDE
+        st.download_button("📥 BAIXAR PROPOSTA OFICIAL", data=pdf_final, file_name=nome_arq)
+    else:
+        st.warning("⚠️ Preencha a Razão Social, Comprador e a Referência para liberar o download do PDF.")
 
 with aba_hist:
     st.info("Aqui entrará a lista das últimas propostas geradas (Conexão Supabase aguardando ativação).")
